@@ -269,9 +269,10 @@ def run_index(project_id, directory, suffix, force,
 @click.argument('paths', type=click.Path(exists=True), nargs=-1)
 @click.option('--limit', default=10, help='Maximum number of subjects')
 @click.option('--threshold', default=0.0, help='Minimum score threshold')
+@click.option('--results_to_file', default=False, help='Whether to write non-aggregated results to file in /data')
 @backend_param_option
 @common_options
-def run_eval(project_id, paths, limit, threshold, backend_param):
+def run_eval(project_id, paths, limit, threshold, backend_param, results_to_file):
     """
     Analyze documents and evaluate the result.
 
@@ -292,8 +293,10 @@ def run_eval(project_id, paths, limit, threshold, backend_param):
         eval_batch.evaluate(hits,
                             annif.corpus.SubjectSet((doc.uris, doc.labels)))
 
+    # make sure this ends up in the proper location:
+    results_file = 'results_per_label.tsv' if results_to_file else None
     template = "{0:<20}\t{1}"
-    for metric, score in eval_batch.results().items():
+    for metric, score in eval_batch.results(results_file=results_file).items():
         click.echo(template.format(metric + ":", score))
 
 

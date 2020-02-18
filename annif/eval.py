@@ -4,6 +4,7 @@ import collections
 import statistics
 import warnings
 import numpy as np
+import pandas as pd
 from sklearn.metrics import precision_score, recall_score, f1_score
 from sklearn.metrics import label_ranking_average_precision_score
 from annif.exception import NotSupportedException
@@ -98,7 +99,9 @@ class EvaluationBatch:
         self._samples.append((hits, gold_subjects))
 
     def _evaluate_samples(self, y_true, y_pred, metrics='all'):
+
         y_pred_binary = y_pred > 0.0
+
         results = collections.OrderedDict()
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
@@ -109,19 +112,29 @@ class EvaluationBatch:
                 y_true, y_pred_binary, average='samples')
             results['F1 score (doc avg)'] = f1_score(
                 y_true, y_pred_binary, average='samples')
+
             if metrics == 'all':
-                results['Precision (conc avg)'] = precision_score(
+                results['Precision (label avg)'] = precision_score(
                     y_true, y_pred_binary, average='macro')
-                results['Recall (conc avg)'] = recall_score(
+                results['Recall (label avg)'] = recall_score(
                     y_true, y_pred_binary, average='macro')
-                results['F1 score (conc avg)'] = f1_score(
+                results['F1 score (label avg)'] = f1_score(
                     y_true, y_pred_binary, average='macro')
+
+                results['Precision (weighted label avg)'] = precision_score(
+                    y_true, y_pred_binary, average='weighted')
+                results['Recall (weighted label avg)'] = recall_score(
+                    y_true, y_pred_binary, average='weighted')
+                results['F1 score (weighted label avg)'] = f1_score(
+                    y_true, y_pred_binary, average='weighted')
+
                 results['Precision (microavg)'] = precision_score(
                     y_true, y_pred_binary, average='micro')
                 results['Recall (microavg)'] = recall_score(
                     y_true, y_pred_binary, average='micro')
                 results['F1 score (microavg)'] = f1_score(
                     y_true, y_pred_binary, average='micro')
+
             results['F1@5'] = f1_score(
                 y_true, filter_pred_top_k(y_pred, 5) > 0.0, average='samples')
             results['NDCG'] = ndcg_score(y_true, y_pred)
@@ -142,13 +155,45 @@ class EvaluationBatch:
                     y_true, y_pred_binary)
                 results['False negatives'] = false_negatives(
                     y_true, y_pred_binary)
-
         return results
 
-    def results(self, metrics='all'):
+    def output_result_per_label(self, y_true, y_pred, outputfile):
+        """Write results per label (non-aggregated) to outputfile"""
+
+        y_pred = y_pred.T > 0.0
+        y_true = y_true.T > 0.0
+
+        tp = (y_true & y_pred)
+        fp = (~y_true & y_pred)
+        fn = (y_true & ~y_pred)
+
+        r = len(y_true)
+
+        with open(outputfile, 'w') as f:
+            f.write('\t'.join(['URI', 'Label', 'Support', 'True_positives',
+                               'False_positives', 'False_negatives',
+                               'Precision', 'Recall', 'F1_score']) + '\n')
+            ## TODO: make sure label does not contain tab character (enclose with quotes to delimit string?)
+            zipped = zip(self._subject_index._uris,       # URI 
+                         self._subject_index._labels,     # Label
+                         [sum(tp[i]) + sum(fn[i])
+                          for i in range(r)],             # Support
+                         [sum(tp[i]) for i in range(r)],  # True_positives
+                         [sum(fp[i]) for i in range(r)],  # False_positives
+                         [sum(fn[i]) for i in range(r)],  # False_negatives
+                         [precision_score(y_true[i], y_pred[i], zero_division=0)
+                          for i in range(r)],             # Precision
+                         [recall_score(y_true[i], y_pred[i], zero_division=0)
+                          for i in range(r)],             # Recall
+                         [f1_score(y_true[i], y_pred[i], zero_division=0)
+                          for i in range(r)])             # F1
+            f.write('\n'.join('\t'.join(str(e) for e in row)
+                              for row in zipped))
+
+    def results(self, metrics='all', results_file=None):
         """evaluate a set of selected subjects against a gold standard using
-        different metrics. The set of metrics can be either 'all' or
-        'simple'."""
+        different metrics. The set of metrics can be either 'all' or 'simple'.
+        If an output_per_label_file (str) is given, write results per label to it"""
 
         if not self._samples:
             raise NotSupportedException("cannot evaluate empty corpus")
@@ -162,4 +207,7 @@ class EvaluationBatch:
         results = self._evaluate_samples(
             y_true, y_pred, metrics)
         results['Documents evaluated'] = y_true.shape[0]
+
+        if results_file:
+            self.output_result_per_label(y_true, y_pred, results_file) # How to determine where to write results to?
         return results

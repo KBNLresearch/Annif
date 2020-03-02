@@ -173,8 +173,9 @@ class EvaluationBatch:
             f.write('\t'.join(['URI', 'Label', 'Support', 'True_positives',
                                'False_positives', 'False_negatives',
                                'Precision', 'Recall', 'F1_score']) + '\n')
-            ## TODO: make sure label does not contain tab character (enclose with quotes to delimit string?)
-            zipped = zip(self._subject_index._uris,       # URI 
+            # TODO: make sure label does not contain tab character (enclose
+            # with quotes to delimit string?)
+            zipped = zip(self._subject_index._uris,       # URI
                          self._subject_index._labels,     # Label
                          [sum(tp[i]) + sum(fn[i])
                           for i in range(r)],             # Support
@@ -209,5 +210,6 @@ class EvaluationBatch:
         results['Documents evaluated'] = y_true.shape[0]
 
         if results_file:
-            self.output_result_per_label(y_true, y_pred, results_file) # How to determine where to write results to?
+            # How to determine where to write results to?
+            self.output_result_per_label(y_true, y_pred, results_file)
         return results

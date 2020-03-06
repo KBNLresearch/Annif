@@ -8,7 +8,7 @@ import pandas as pd
 from sklearn.metrics import precision_score, recall_score, f1_score
 from sklearn.metrics import label_ranking_average_precision_score
 from annif.exception import NotSupportedException
-
+import os, csv
 
 def filter_pred_top_k(preds, limit):
     """filter a 2D prediction vector, retaining only the top K suggestions
@@ -113,18 +113,18 @@ class EvaluationBatch:
                 y_true, y_pred_binary, average='samples')
 
             if metrics == 'all':
-                results['Precision (label avg)'] = precision_score(
+                results['Precision (subj avg)'] = precision_score(
                     y_true, y_pred_binary, average='macro')
-                results['Recall (label avg)'] = recall_score(
+                results['Recall (subj avg)'] = recall_score(
                     y_true, y_pred_binary, average='macro')
-                results['F1 score (label avg)'] = f1_score(
+                results['F1 score (subj avg)'] = f1_score(
                     y_true, y_pred_binary, average='macro')
 
-                results['Precision (weighted label avg)'] = precision_score(
+                results['Precision (weighted subj avg)'] = precision_score(
                     y_true, y_pred_binary, average='weighted')
-                results['Recall (weighted label avg)'] = recall_score(
+                results['Recall (weighted subj avg)'] = recall_score(
                     y_true, y_pred_binary, average='weighted')
-                results['F1 score (weighted label avg)'] = f1_score(
+                results['F1 score (weighted subj avg)'] = f1_score(
                     y_true, y_pred_binary, average='weighted')
 
                 results['Precision (microavg)'] = precision_score(
@@ -156,7 +156,7 @@ class EvaluationBatch:
                     y_true, y_pred_binary)
         return results
 
-    def output_result_per_label(self, y_true, y_pred, outputfile):
+    def output_result_per_label(self, y_true, y_pred, results_file):
         """Write results per label (non-aggregated) to outputfile"""
 
         y_pred = y_pred.T > 0.0
@@ -168,12 +168,10 @@ class EvaluationBatch:
 
         r = len(y_true)
 
-        with open(outputfile, 'w') as f:
+        with open(results_file, 'w') as f:
             f.write('\t'.join(['URI', 'Label', 'Support', 'True_positives',
                                'False_positives', 'False_negatives',
                                'Precision', 'Recall', 'F1_score']) + '\n')
-            # TODO: make sure label does not contain tab character (enclose
-            # with quotes to delimit string?)
             zipped = zip(self._subject_index._uris,       # URI
                          self._subject_index._labels,     # Label
                          [sum(tp[i]) + sum(fn[i])
@@ -209,6 +207,9 @@ class EvaluationBatch:
         results['Documents evaluated'] = y_true.shape[0]
 
         if results_file:
-            # How to determine where to write results to?
+            dirname = os.path.dirname(results_file)
+            if dirname:
+                if not os.path.isdir(dirname):
+                    os.makedirs(dirname)
             self.output_result_per_label(y_true, y_pred, results_file)
         return results
